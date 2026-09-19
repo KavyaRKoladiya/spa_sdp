@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'admin/manage_subjects_page.dart';
+import 'admin/manage_materials_page.dart';
+import 'admin/manage_quizzes_page.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({super.key});
@@ -37,6 +40,10 @@ class AdminDashboard extends StatelessWidget {
               title: const Text('Manage Subjects'),
               onTap: () {
                 Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ManageSubjectsPage()),
+                );
               },
             ),
             ListTile(
@@ -44,6 +51,10 @@ class AdminDashboard extends StatelessWidget {
               title: const Text('Manage Materials'),
               onTap: () {
                 Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ManageMaterialsPage()),
+                );
               },
             ),
             ListTile(
@@ -51,6 +62,10 @@ class AdminDashboard extends StatelessWidget {
               title: const Text('Manage Quizzes'),
               onTap: () {
                 Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ManageQuizzesPage()),
+                );
               },
             ),
             const Divider(),

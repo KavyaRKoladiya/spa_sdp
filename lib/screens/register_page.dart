@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'student_dashboard.dart';
+import '../data/mock_data.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -16,17 +17,6 @@ class _RegisterPageState extends State<RegisterPage> {
   String? _selectedSemester;
   bool _obscurePassword = true;
 
-  final List<String> _semesters = [
-    'Semester 1',
-    'Semester 2',
-    'Semester 3',
-    'Semester 4',
-    'Semester 5',
-    'Semester 6',
-    'Semester 7',
-    'Semester 8'
-  ];
-
   void _register() {
     if (_formKey.currentState!.validate()) {
       if (_selectedSemester == null) {
@@ -35,6 +25,8 @@ class _RegisterPageState extends State<RegisterPage> {
         );
         return;
       }
+      
+      MockData.currentStudentSemester = _selectedSemester!;
       
       // Proceed to student dashboard directly for now
       Navigator.pushReplacement(
@@ -181,7 +173,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     fillColor: Colors.white,
                   ),
                   value: _selectedSemester,
-                  items: _semesters.map((String sem) {
+                  items: MockData.semesters.map((String sem) {
                     return DropdownMenuItem<String>(
                       value: sem,
                       child: Text(sem),

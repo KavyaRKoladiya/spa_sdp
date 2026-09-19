@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'student/student_materials_page.dart';
+import 'student/student_quizzes_page.dart';
 
 class StudentDashboard extends StatelessWidget {
   const StudentDashboard({super.key});
@@ -37,6 +39,10 @@ class StudentDashboard extends StatelessWidget {
               title: const Text('Study Materials'),
               onTap: () {
                 Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const StudentMaterialsPage()),
+                );
               },
             ),
             ListTile(
@@ -44,6 +50,10 @@ class StudentDashboard extends StatelessWidget {
               title: const Text('Quizzes'),
               onTap: () {
                 Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const StudentQuizzesPage()),
+                );
               },
             ),
             ListTile(
