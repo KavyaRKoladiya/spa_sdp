@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'student_dashboard.dart';
 import '../data/mock_data.dart';
+import '../data/database_helper.dart';
+import '../models/models.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -16,8 +18,9 @@ class _RegisterPageState extends State<RegisterPage> {
   final _passwordController = TextEditingController();
   String? _selectedSemester;
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
-  void _register() {
+  void _register() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedSemester == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -26,13 +29,47 @@ class _RegisterPageState extends State<RegisterPage> {
         return;
       }
       
+      setState(() {
+        _isLoading = true;
+      });
+
+      final email = _emailController.text.trim();
+      final existingStudent = await DatabaseHelper.instance.getStudentByEmail(email);
+
+      if (existingStudent != null) {
+        setState(() {
+          _isLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account already exists with this email')),
+          );
+        }
+        return;
+      }
+
+      final newStudent = Student(
+        name: _nameController.text.trim(),
+        email: email,
+        password: _passwordController.text,
+        semester: _selectedSemester!,
+      );
+
+      final insertedStudent = await DatabaseHelper.instance.insertStudent(newStudent);
+      
+      MockData.currentStudent = insertedStudent;
       MockData.currentStudentSemester = _selectedSemester!;
       
-      // Proceed to student dashboard directly for now
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const StudentDashboard()),
-      );
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const StudentDashboard()),
+        );
+      }
     }
   }
 
@@ -186,21 +223,23 @@ class _RegisterPageState extends State<RegisterPage> {
                   },
                 ),
                 const SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: _register,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.secondary,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 56),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    'Register',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ),
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : ElevatedButton(
+                        onPressed: _register,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.secondary,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(double.infinity, 56),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text(
+                          'Register',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ),
               ],
             ),
           ),

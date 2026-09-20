@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../models/models.dart';
 import '../../data/mock_data.dart';
+import '../../data/database_helper.dart';
 
 class ManageMaterialsPage extends StatefulWidget {
   const ManageMaterialsPage({super.key});
@@ -11,6 +12,36 @@ class ManageMaterialsPage extends StatefulWidget {
 }
 
 class _ManageMaterialsPageState extends State<ManageMaterialsPage> {
+  List<MaterialItem> _materials = [];
+  List<Subject> _allSubjects = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final materials = await DatabaseHelper.instance.getMaterials();
+      final subjects = await DatabaseHelper.instance.getSubjects();
+      setState(() {
+        _materials = materials;
+        _allSubjects = subjects;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading data: $e')),
+        );
+      }
+    }
+  }
   void _addMaterialDialog() {
     final formKey = GlobalKey<FormState>();
     final titleController = TextEditingController();
@@ -28,7 +59,7 @@ class _ManageMaterialsPageState extends State<ManageMaterialsPage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             // Filter subjects based on selected semester
-            final availableSubjects = MockData.subjects
+            final availableSubjects = _allSubjects
                 .where((s) => s.semester == selectedSemester)
                 .toList();
             if (availableSubjects.isNotEmpty && 
@@ -111,7 +142,7 @@ class _ManageMaterialsPageState extends State<ManageMaterialsPage> {
               actions: [
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     if (formKey.currentState!.validate()) {
                       if (selectedFileName == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -119,17 +150,20 @@ class _ManageMaterialsPageState extends State<ManageMaterialsPage> {
                         );
                         return;
                       }
-                      setState(() {
-                        MockData.materials.add(MaterialItem(
-                          title: titleController.text,
-                          type: selectedType!,
-                          fileName: selectedFileName!,
-                          subjectId: selectedSubjectId!,
-                          semester: selectedSemester!,
-                          chapter: chapterController.text,
-                        ));
-                      });
-                      Navigator.pop(context);
+                      
+                      final newMaterial = MaterialItem(
+                        title: titleController.text,
+                        type: selectedType!,
+                        fileName: selectedFileName!,
+                        subjectId: selectedSubjectId!,
+                        semester: selectedSemester!,
+                        chapter: chapterController.text,
+                      );
+                      
+                      await DatabaseHelper.instance.insertMaterial(newMaterial);
+                      _loadData();
+                      
+                      if (context.mounted) Navigator.pop(context);
                     }
                   },
                   child: const Text('Add'),
@@ -148,12 +182,14 @@ class _ManageMaterialsPageState extends State<ManageMaterialsPage> {
       appBar: AppBar(
         title: const Text('Manage Materials'),
       ),
-      body: MockData.materials.isEmpty
+      body: _isLoading 
+          ? const Center(child: CircularProgressIndicator())
+          : _materials.isEmpty
           ? const Center(child: Text('No materials added yet.'))
           : ListView.builder(
-              itemCount: MockData.materials.length,
+              itemCount: _materials.length,
               itemBuilder: (context, index) {
-                final item = MockData.materials[index];
+                final item = _materials[index];
                 return ListTile(
                   leading: const Icon(Icons.picture_as_pdf),
                   title: Text(item.title),
@@ -176,11 +212,10 @@ class _ManageMaterialsPageState extends State<ManageMaterialsPage> {
                                 child: const Text('Cancel'),
                               ),
                               TextButton(
-                                onPressed: () {
-                                  setState(() {
-                                    MockData.materials.removeAt(index);
-                                  });
+                                onPressed: () async {
                                   Navigator.pop(context);
+                                  await DatabaseHelper.instance.deleteMaterial(item.id!);
+                                  _loadData();
                                 },
                                 child: const Text('Delete', style: TextStyle(color: Colors.red)),
                               ),

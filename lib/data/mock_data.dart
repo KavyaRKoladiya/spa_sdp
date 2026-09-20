@@ -1,11 +1,14 @@
 import '../models/models.dart';
 
 class MockData {
+  // We keep this to track the logged-in user's semester across screens
+  static String currentStudentSemester = 'Semester 1';
+  static Student? currentStudent;
+
+  static List<Student> students = [];
   static List<Subject> subjects = [];
   static List<MaterialItem> materials = [];
   static List<QuizItem> quizzes = [];
-
-  static String currentStudentSemester = 'Semester 1';
 
   static final List<String> semesters = [
     'Semester 1',

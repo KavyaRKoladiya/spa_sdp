@@ -1,9 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../data/mock_data.dart';
+import '../../data/database_helper.dart';
+import '../../models/models.dart';
 
-class StudentQuizzesPage extends StatelessWidget {
+class StudentQuizzesPage extends StatefulWidget {
   const StudentQuizzesPage({super.key});
+
+  @override
+  State<StudentQuizzesPage> createState() => _StudentQuizzesPageState();
+}
+
+class _StudentQuizzesPageState extends State<StudentQuizzesPage> {
+  List<QuizItem> _myQuizzes = [];
+  List<Subject> _subjects = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final quizzes = await DatabaseHelper.instance.getQuizzesBySemester(MockData.currentStudentSemester);
+    final subjects = await DatabaseHelper.instance.getSubjects();
+    setState(() {
+      _myQuizzes = quizzes;
+      _subjects = subjects;
+      _isLoading = false;
+    });
+  }
 
   Future<void> _launchUrl(String urlString, BuildContext context) async {
     // Add http:// prefix if missing so url_launcher handles it correctly
@@ -23,18 +50,15 @@ class StudentQuizzesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Filter quizzes by the student's current semester
-    final myQuizzes = MockData.quizzes
-        .where((q) => q.semester == MockData.currentStudentSemester)
-        .toList();
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quizzes'),
         backgroundColor: Theme.of(context).colorScheme.secondary,
         foregroundColor: Colors.white,
       ),
-      body: myQuizzes.isEmpty
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _myQuizzes.isEmpty
           ? Center(
               child: Text(
                 'No quizzes available for ${MockData.currentStudentSemester}',
@@ -43,13 +67,13 @@ class StudentQuizzesPage extends StatelessWidget {
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: myQuizzes.length,
+              itemCount: _myQuizzes.length,
               itemBuilder: (context, index) {
-                final quiz = myQuizzes[index];
+                final quiz = _myQuizzes[index];
                 
                 // Get subject name
-                final subjectName = MockData.subjects
-                    .firstWhere((s) => s.id == quiz.subjectId, orElse: () => MockData.subjects.first)
+                final subjectName = _subjects
+                    .firstWhere((s) => s.id == quiz.subjectId, orElse: () => Subject(id: '', name: 'Unknown Subject', credits: 0, semester: ''))
                     .name;
 
                 return Card(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/models.dart';
 import '../../data/mock_data.dart';
+import '../../data/database_helper.dart';
 
 class ManageQuizzesPage extends StatefulWidget {
   const ManageQuizzesPage({super.key});
@@ -10,6 +11,36 @@ class ManageQuizzesPage extends StatefulWidget {
 }
 
 class _ManageQuizzesPageState extends State<ManageQuizzesPage> {
+  List<QuizItem> _quizzes = [];
+  List<Subject> _allSubjects = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final quizzes = await DatabaseHelper.instance.getQuizzes();
+      final subjects = await DatabaseHelper.instance.getSubjects();
+      setState(() {
+        _quizzes = quizzes;
+        _allSubjects = subjects;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading data: $e')),
+        );
+      }
+    }
+  }
   void _addQuizDialog() {
     final formKey = GlobalKey<FormState>();
     final titleController = TextEditingController();
@@ -24,7 +55,7 @@ class _ManageQuizzesPageState extends State<ManageQuizzesPage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             // Filter subjects based on selected semester
-            final availableSubjects = MockData.subjects
+            final availableSubjects = _allSubjects
                 .where((s) => s.semester == selectedSemester)
                 .toList();
             if (availableSubjects.isNotEmpty && 
@@ -81,18 +112,20 @@ class _ManageQuizzesPageState extends State<ManageQuizzesPage> {
               actions: [
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     if (formKey.currentState!.validate()) {
-                      setState(() {
-                        MockData.quizzes.add(QuizItem(
-                          title: titleController.text,
-                          link: linkController.text,
-                          subjectId: selectedSubjectId!,
-                          semester: selectedSemester!,
-                          chapter: chapterController.text,
-                        ));
-                      });
-                      Navigator.pop(context);
+                      final newQuiz = QuizItem(
+                        title: titleController.text,
+                        link: linkController.text,
+                        subjectId: selectedSubjectId!,
+                        semester: selectedSemester!,
+                        chapter: chapterController.text,
+                      );
+                      
+                      await DatabaseHelper.instance.insertQuiz(newQuiz);
+                      _loadData();
+                      
+                      if (context.mounted) Navigator.pop(context);
                     }
                   },
                   child: const Text('Add'),
@@ -111,12 +144,14 @@ class _ManageQuizzesPageState extends State<ManageQuizzesPage> {
       appBar: AppBar(
         title: const Text('Manage Quizzes'),
       ),
-      body: MockData.quizzes.isEmpty
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _quizzes.isEmpty
           ? const Center(child: Text('No quizzes added yet.'))
           : ListView.builder(
-              itemCount: MockData.quizzes.length,
+              itemCount: _quizzes.length,
               itemBuilder: (context, index) {
-                final quiz = MockData.quizzes[index];
+                final quiz = _quizzes[index];
                 return ListTile(
                   leading: const Icon(Icons.quiz),
                   title: Text(quiz.title),
@@ -142,11 +177,10 @@ class _ManageQuizzesPageState extends State<ManageQuizzesPage> {
                                     child: const Text('Cancel'),
                                   ),
                                   TextButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        MockData.quizzes.removeAt(index);
-                                      });
+                                    onPressed: () async {
                                       Navigator.pop(context);
+                                      await DatabaseHelper.instance.deleteQuiz(quiz.id!);
+                                      _loadData();
                                     },
                                     child: const Text('Delete', style: TextStyle(color: Colors.red)),
                                   ),

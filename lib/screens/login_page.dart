@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'admin_dashboard.dart';
 import 'student_dashboard.dart';
+import '../data/database_helper.dart';
+import '../data/mock_data.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,24 +16,64 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
-  void _login() {
+  void _login() async {
     if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
+
       final email = _emailController.text.trim();
       final password = _passwordController.text;
 
       // Fixed Admin ID and Password
       if (email == 'admin' && password == 'admin123') {
+        setState(() {
+          _isLoading = false;
+        });
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const AdminDashboard()),
         );
-      } else {
-        // Assume student login successful for demonstration
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const StudentDashboard()),
-        );
+        return;
+      }
+
+      // Database student verification
+      try {
+        final student = await DatabaseHelper.instance.getStudentByEmail(email);
+
+        setState(() {
+          _isLoading = false;
+        });
+
+        if (student != null && student.password == password) {
+          // Set the global session details
+          MockData.currentStudent = student;
+          MockData.currentStudentSemester = student.semester;
+          
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const StudentDashboard()),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Invalid credentials. Please try again.')),
+            );
+          }
+        }
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error during login: $e')),
+          );
+        }
       }
     }
   }
@@ -137,21 +179,23 @@ class _LoginPageState extends State<LoginPage> {
                   },
                 ),
                 const SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: _login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 56),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    'Login',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ),
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : ElevatedButton(
+                        onPressed: _login,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(double.infinity, 56),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text(
+                          'Login',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ),
               ],
             ),
           ),

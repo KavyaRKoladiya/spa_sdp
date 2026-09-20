@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/models.dart';
 import '../../data/mock_data.dart';
+import '../../data/database_helper.dart';
 
 class ManageSubjectsPage extends StatefulWidget {
   const ManageSubjectsPage({super.key});
@@ -10,6 +11,33 @@ class ManageSubjectsPage extends StatefulWidget {
 }
 
 class _ManageSubjectsPageState extends State<ManageSubjectsPage> {
+  List<Subject> _subjects = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSubjects();
+  }
+
+  Future<void> _loadSubjects() async {
+    try {
+      final subjects = await DatabaseHelper.instance.getSubjects();
+      setState(() {
+        _subjects = subjects;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading subjects: $e')),
+        );
+      }
+    }
+  }
   void _addSubjectDialog() {
     final formKey = GlobalKey<FormState>();
     final idController = TextEditingController();
@@ -57,17 +85,17 @@ class _ManageSubjectsPageState extends State<ManageSubjectsPage> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 if (formKey.currentState!.validate()) {
-                  setState(() {
-                    MockData.subjects.add(Subject(
-                      id: idController.text,
-                      name: nameController.text,
-                      credits: int.parse(creditsController.text),
-                      semester: selectedSemester!,
-                    ));
-                  });
-                  Navigator.pop(context);
+                  final newSubject = Subject(
+                    id: idController.text,
+                    name: nameController.text,
+                    credits: int.parse(creditsController.text),
+                    semester: selectedSemester!,
+                  );
+                  await DatabaseHelper.instance.insertSubject(newSubject);
+                  _loadSubjects();
+                  if (context.mounted) Navigator.pop(context);
                 }
               },
               child: const Text('Add'),
@@ -84,12 +112,14 @@ class _ManageSubjectsPageState extends State<ManageSubjectsPage> {
       appBar: AppBar(
         title: const Text('Manage Subjects'),
       ),
-      body: MockData.subjects.isEmpty
+      body: _isLoading 
+          ? const Center(child: CircularProgressIndicator())
+          : _subjects.isEmpty
           ? const Center(child: Text('No subjects added yet.'))
           : ListView.builder(
-              itemCount: MockData.subjects.length,
+              itemCount: _subjects.length,
               itemBuilder: (context, index) {
-                final subject = MockData.subjects[index];
+                final subject = _subjects[index];
                 return ListTile(
                   leading: CircleAvatar(child: Text(subject.credits.toString())),
                   title: Text('${subject.name} (${subject.id})'),
@@ -111,13 +141,10 @@ class _ManageSubjectsPageState extends State<ManageSubjectsPage> {
                                 child: const Text('Cancel'),
                               ),
                               TextButton(
-                                onPressed: () {
-                                  setState(() {
-                                    MockData.subjects.removeAt(index);
-                                    MockData.materials.removeWhere((m) => m.subjectId == subject.id);
-                                    MockData.quizzes.removeWhere((q) => q.subjectId == subject.id);
-                                  });
+                                onPressed: () async {
                                   Navigator.pop(context); // Close dialog
+                                  await DatabaseHelper.instance.deleteSubject(subject.id);
+                                  _loadSubjects();
                                 },
                                 child: const Text('Delete', style: TextStyle(color: Colors.red)),
                               ),

@@ -1,23 +1,47 @@
 import 'package:flutter/material.dart';
 import '../../data/mock_data.dart';
+import '../../data/database_helper.dart';
+import '../../models/models.dart';
 
-class StudentMaterialsPage extends StatelessWidget {
+class StudentMaterialsPage extends StatefulWidget {
   const StudentMaterialsPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Filter materials by the student's current semester
-    final myMaterials = MockData.materials
-        .where((m) => m.semester == MockData.currentStudentSemester)
-        .toList();
+  State<StudentMaterialsPage> createState() => _StudentMaterialsPageState();
+}
 
+class _StudentMaterialsPageState extends State<StudentMaterialsPage> {
+  List<MaterialItem> _myMaterials = [];
+  List<Subject> _subjects = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final materials = await DatabaseHelper.instance.getMaterialsBySemester(MockData.currentStudentSemester);
+    final subjects = await DatabaseHelper.instance.getSubjects();
+    setState(() {
+      _myMaterials = materials;
+      _subjects = subjects;
+      _isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Study Materials'),
         backgroundColor: Theme.of(context).colorScheme.secondary,
         foregroundColor: Colors.white,
       ),
-      body: myMaterials.isEmpty
+      body: _isLoading 
+          ? const Center(child: CircularProgressIndicator())
+          : _myMaterials.isEmpty
           ? Center(
               child: Text(
                 'No materials available for ${MockData.currentStudentSemester}',
@@ -26,9 +50,9 @@ class StudentMaterialsPage extends StatelessWidget {
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: myMaterials.length,
+              itemCount: _myMaterials.length,
               itemBuilder: (context, index) {
-                final item = myMaterials[index];
+                final item = _myMaterials[index];
                 IconData icon;
                 switch (item.type) {
                   case 'PDF':
@@ -48,8 +72,8 @@ class StudentMaterialsPage extends StatelessWidget {
                 }
 
                 // Get subject name
-                final subjectName = MockData.subjects
-                    .firstWhere((s) => s.id == item.subjectId, orElse: () => MockData.subjects.first)
+                final subjectName = _subjects
+                    .firstWhere((s) => s.id == item.subjectId, orElse: () => Subject(id: '', name: 'Unknown Subject', credits: 0, semester: ''))
                     .name;
 
                 return Card(
