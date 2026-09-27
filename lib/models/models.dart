@@ -133,3 +133,50 @@ class QuizItem {
         chapter: map['chapter'],
       );
 }
+
+class StudySession {
+  final int? id;
+  final String studentEmail;
+  final String studentName;
+  final String subjectName;
+  final String? subjectId;
+  final int durationSeconds;
+  final DateTime date;
+  final String? notes;
+
+  StudySession({
+    this.id,
+    required this.studentEmail,
+    required this.studentName,
+    required this.subjectName,
+    this.subjectId,
+    required this.durationSeconds,
+    required this.date,
+    this.notes,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'studentEmail': studentEmail,
+        'studentName': studentName,
+        'subjectName': subjectName,
+        'subjectId': subjectId,
+        'durationSeconds': durationSeconds,
+        'date': date.toIso8601String(),
+        'notes': notes,
+      };
+
+  static StudySession fromMap(Map<String, dynamic> map) => StudySession(
+        id: map['id'],
+        studentEmail: map['studentEmail'] ?? '',
+        studentName: map['studentName'] ?? '',
+        subjectName: map['subjectName'] ?? '',
+        subjectId: map['subjectId'],
+        durationSeconds: map['durationSeconds'] is int
+            ? map['durationSeconds']
+            : int.tryParse(map['durationSeconds']?.toString() ?? '0') ?? 0,
+        date: DateTime.tryParse(map['date']?.toString() ?? '') ?? DateTime.now(),
+        notes: map['notes'],
+      );
+}
+

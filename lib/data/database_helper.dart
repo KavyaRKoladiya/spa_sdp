@@ -33,8 +33,9 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
         onCreate: _createDB,
+        onUpgrade: _onUpgrade,
         onConfigure: _onConfigure,
       ),
     );
@@ -42,6 +43,23 @@ class DatabaseHelper {
 
   Future _onConfigure(Database db) async {
     await db.execute('PRAGMA foreign_keys = ON');
+  }
+
+  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS study_sessions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          studentEmail TEXT NOT NULL,
+          studentName TEXT NOT NULL,
+          subjectName TEXT NOT NULL,
+          subjectId TEXT,
+          durationSeconds INTEGER NOT NULL,
+          date TEXT NOT NULL,
+          notes TEXT
+        )
+      ''');
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -83,6 +101,18 @@ class DatabaseHelper {
         semester TEXT NOT NULL,
         chapter TEXT NOT NULL,
         FOREIGN KEY (subjectId) REFERENCES subjects (id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS study_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        studentEmail TEXT NOT NULL,
+        studentName TEXT NOT NULL,
+        subjectName TEXT NOT NULL,
+        subjectId TEXT,
+        durationSeconds INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        notes TEXT
       )
     ''');
   }
@@ -137,6 +167,22 @@ class DatabaseHelper {
     final maps = await db.query('subjects');
     return maps.map((map) => Subject.fromMap(map)).toList();
   }
+
+  Future<List<Subject>> getSubjectsBySemester(String semester) async {
+    if (kIsWeb) {
+      return MockData.subjects
+          .where((s) => s.semester.trim().toLowerCase() == semester.trim().toLowerCase())
+          .toList();
+    }
+    final db = await instance.database;
+    final maps = await db.query(
+      'subjects',
+      where: 'LOWER(TRIM(semester)) = ?',
+      whereArgs: [semester.trim().toLowerCase()],
+    );
+    return maps.map((map) => Subject.fromMap(map)).toList();
+  }
+
   
   Future<void> deleteSubject(String id) async {
     if (kIsWeb) {
@@ -216,4 +262,62 @@ class DatabaseHelper {
     final db = await instance.database;
     await db.delete('quizzes', where: 'id = ?', whereArgs: [id]);
   }
+
+  // --- Study Sessions ---
+  Future<StudySession> insertStudySession(StudySession session) async {
+    if (kIsWeb) {
+      final newSession = StudySession(
+        id: DateTime.now().millisecondsSinceEpoch,
+        studentEmail: session.studentEmail,
+        studentName: session.studentName,
+        subjectName: session.subjectName,
+        subjectId: session.subjectId,
+        durationSeconds: session.durationSeconds,
+        date: session.date,
+        notes: session.notes,
+      );
+      MockData.studySessions.insert(0, newSession);
+      return newSession;
+    }
+    final db = await instance.database;
+    final id = await db.insert('study_sessions', session.toMap());
+    return StudySession(
+      id: id,
+      studentEmail: session.studentEmail,
+      studentName: session.studentName,
+      subjectName: session.subjectName,
+      subjectId: session.subjectId,
+      durationSeconds: session.durationSeconds,
+      date: session.date,
+      notes: session.notes,
+    );
+  }
+
+  Future<List<StudySession>> getStudySessionsByStudent(String studentEmail) async {
+    if (kIsWeb) {
+      final list = MockData.studySessions
+          .where((s) => s.studentEmail.trim().toLowerCase() == studentEmail.trim().toLowerCase())
+          .toList();
+      list.sort((a, b) => b.date.compareTo(a.date));
+      return list;
+    }
+    final db = await instance.database;
+    final maps = await db.query(
+      'study_sessions',
+      where: 'LOWER(TRIM(studentEmail)) = ?',
+      whereArgs: [studentEmail.trim().toLowerCase()],
+      orderBy: 'date DESC',
+    );
+    return maps.map((map) => StudySession.fromMap(map)).toList();
+  }
+
+  Future<void> deleteStudySession(int id) async {
+    if (kIsWeb) {
+      MockData.studySessions.removeWhere((s) => s.id == id);
+      return;
+    }
+    final db = await instance.database;
+    await db.delete('study_sessions', where: 'id = ?', whereArgs: [id]);
+  }
 }
+

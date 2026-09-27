@@ -22,6 +22,9 @@ class _ManageSubjectsPageState extends State<ManageSubjectsPage> {
 
   Future<void> _loadSubjects() async {
     try {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
       final subjects = await DatabaseHelper.instance.getSubjects();
       setState(() {
         _subjects = subjects;
@@ -120,10 +123,21 @@ class _ManageSubjectsPageState extends State<ManageSubjectsPage> {
               itemCount: _subjects.length,
               itemBuilder: (context, index) {
                 final subject = _subjects[index];
+                final semNumber = subject.semester.replaceAll(RegExp(r'[^0-9]'), '');
                 return ListTile(
-                  leading: CircleAvatar(child: Text(subject.credits.toString())),
-                  title: Text('${subject.name} (${subject.id})'),
-                  subtitle: Text(subject.semester),
+                  leading: CircleAvatar(
+                    backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                    child: Text(
+                      semNumber.isNotEmpty ? semNumber : 'S',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  title: Text('${subject.name} (${subject.id})',
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text('${subject.semester} • ${subject.credits} Credits'),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () {

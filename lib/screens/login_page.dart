@@ -29,6 +29,7 @@ class _LoginPageState extends State<LoginPage> {
 
       // Fixed Admin ID and Password
       if (email == 'admin' && password == 'admin123') {
+        ScaffoldMessenger.of(context).clearSnackBars();
         setState(() {
           _isLoading = false;
         });
@@ -53,6 +54,7 @@ class _LoginPageState extends State<LoginPage> {
           MockData.currentStudentSemester = student.semester;
           
           if (mounted) {
+            ScaffoldMessenger.of(context).clearSnackBars();
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const StudentDashboard()),
