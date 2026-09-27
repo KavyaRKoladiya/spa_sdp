@@ -60,6 +60,7 @@ class _ManageSubjectsPageState extends State<ManageSubjectsPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<String>(
+                    // ignore: deprecated_member_use
                     value: selectedSemester,
                     decoration: const InputDecoration(labelText: 'Semester'),
                     items: MockData.semesters.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),

@@ -82,7 +82,7 @@ class _StudentQuizzesPageState extends State<StudentQuizzesPage> {
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(16),
                     leading: CircleAvatar(
-                      backgroundColor: Colors.orange.withOpacity(0.2),
+                      backgroundColor: Colors.orange.withValues(alpha: 0.2),
                       child: const Icon(Icons.quiz, color: Colors.orange),
                     ),
                     title: Text(

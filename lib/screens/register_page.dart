@@ -209,6 +209,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     filled: true,
                     fillColor: Colors.white,
                   ),
+                  // ignore: deprecated_member_use
                   value: _selectedSemester,
                   items: MockData.semesters.map((String sem) {
                     return DropdownMenuItem<String>(

@@ -63,6 +63,7 @@ class MaterialItem {
   final String title;
   final String type;
   final String fileName;
+  final String? filePath;
   final String subjectId;
   final String semester;
   final String chapter;
@@ -70,8 +71,9 @@ class MaterialItem {
   MaterialItem({
     this.id,
     required this.title,
-    required this.type,
+    this.type = 'PDF',
     required this.fileName,
+    this.filePath,
     required this.subjectId,
     required this.semester,
     required this.chapter,
@@ -82,6 +84,7 @@ class MaterialItem {
         'title': title,
         'type': type,
         'fileName': fileName,
+        'filePath': filePath,
         'subjectId': subjectId,
         'semester': semester,
         'chapter': chapter,
@@ -90,8 +93,9 @@ class MaterialItem {
   static MaterialItem fromMap(Map<String, dynamic> map) => MaterialItem(
         id: map['id'],
         title: map['title'],
-        type: map['type'],
+        type: map['type'] ?? 'PDF',
         fileName: map['fileName'],
+        filePath: map['filePath'],
         subjectId: map['subjectId'],
         semester: map['semester'],
         chapter: map['chapter'],

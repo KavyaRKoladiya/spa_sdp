@@ -74,6 +74,7 @@ class _ManageQuizzesPageState extends State<ManageQuizzesPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       DropdownButtonFormField<String>(
+                        // ignore: deprecated_member_use
                         value: selectedSemester,
                         decoration: const InputDecoration(labelText: 'Semester'),
                         items: MockData.semesters.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
@@ -84,6 +85,7 @@ class _ManageQuizzesPageState extends State<ManageQuizzesPage> {
                         },
                       ),
                       DropdownButtonFormField<String>(
+                        // ignore: deprecated_member_use
                         value: selectedSubjectId,
                         decoration: const InputDecoration(labelText: 'Subject'),
                         items: availableSubjects.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))).toList(),

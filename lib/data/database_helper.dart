@@ -33,7 +33,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 2,
+        version: 3,
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
         onConfigure: _onConfigure,
@@ -59,6 +59,22 @@ class DatabaseHelper {
           notes TEXT
         )
       ''');
+    }
+    if (oldVersion < 3) {
+      try {
+        await db.execute('ALTER TABLE materials ADD COLUMN filePath TEXT');
+      } catch (_) {}
+
+      // Seed subjects if empty
+      try {
+        final countMaps = await db.rawQuery('SELECT COUNT(*) as cnt FROM subjects');
+        final count = countMaps.isNotEmpty ? countMaps.first['cnt'] as int? : 0;
+        if (count == null || count == 0) {
+          for (final subject in MockData.subjects) {
+            await db.insert('subjects', subject.toMap(), conflictAlgorithm: ConflictAlgorithm.ignore);
+          }
+        }
+      } catch (_) {}
     }
   }
 
@@ -86,6 +102,7 @@ class DatabaseHelper {
         title TEXT NOT NULL,
         type TEXT NOT NULL,
         fileName TEXT NOT NULL,
+        filePath TEXT,
         subjectId TEXT NOT NULL,
         semester TEXT NOT NULL,
         chapter TEXT NOT NULL,
@@ -115,6 +132,11 @@ class DatabaseHelper {
         notes TEXT
       )
     ''');
+
+    // Pre-populate default subjects from MockData
+    for (final subject in MockData.subjects) {
+      await db.insert('subjects', subject.toMap(), conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
   }
 
   // --- Students ---
@@ -198,7 +220,16 @@ class DatabaseHelper {
   // --- Materials ---
   Future<void> insertMaterial(MaterialItem material) async {
     if (kIsWeb) {
-      material = MaterialItem(id: DateTime.now().millisecondsSinceEpoch, title: material.title, type: material.type, fileName: material.fileName, subjectId: material.subjectId, semester: material.semester, chapter: material.chapter);
+      material = MaterialItem(
+        id: DateTime.now().millisecondsSinceEpoch,
+        title: material.title,
+        type: material.type,
+        fileName: material.fileName,
+        filePath: material.filePath,
+        subjectId: material.subjectId,
+        semester: material.semester,
+        chapter: material.chapter,
+      );
       MockData.materials.add(material);
       return;
     }
@@ -226,6 +257,18 @@ class DatabaseHelper {
       return;
     }
     final db = await instance.database;
+    try {
+      final maps = await db.query('materials', where: 'id = ?', whereArgs: [id]);
+      if (maps.isNotEmpty) {
+        final path = maps.first['filePath'] as String?;
+        if (path != null && path.isNotEmpty) {
+          final file = io.File(path);
+          if (await file.exists()) {
+            await file.delete();
+          }
+        }
+      }
+    } catch (_) {}
     await db.delete('materials', where: 'id = ?', whereArgs: [id]);
   }
 
