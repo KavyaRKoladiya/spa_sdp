@@ -22,23 +22,20 @@ class _ManageSubjectsPageState extends State<ManageSubjectsPage> {
 
   Future<void> _loadSubjects() async {
     try {
-      if (mounted) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-      }
       final subjects = await DatabaseHelper.instance.getSubjects();
+      if (!mounted) return;
       setState(() {
         _subjects = subjects;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading subjects: $e')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading subjects: $e')),
+      );
     }
   }
   void _addSubjectDialog() {
