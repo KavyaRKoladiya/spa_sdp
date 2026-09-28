@@ -3,6 +3,7 @@ import 'admin_dashboard.dart';
 import 'student_dashboard.dart';
 import '../data/database_helper.dart';
 import '../data/mock_data.dart';
+import '../utils/password_validator.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -177,7 +178,11 @@ class _LoginPageState extends State<LoginPage> {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your password';
                     }
-                    return null;
+                    // Admin login uses fixed admin credentials and bypasses student rules
+                    if (_emailController.text.trim().toLowerCase() == 'admin') {
+                      return null;
+                    }
+                    return PasswordValidator.validate(value);
                   },
                 ),
                 const SizedBox(height: 32),

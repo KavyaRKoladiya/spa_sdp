@@ -3,6 +3,7 @@ import 'student_dashboard.dart';
 import '../data/mock_data.dart';
 import '../data/database_helper.dart';
 import '../models/models.dart';
+import '../utils/password_validator.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -188,15 +189,10 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                     filled: true,
                     fillColor: Colors.white,
+                    helperText: '8-20 chars: 1 uppercase, 1 lowercase, 1 digit, 1 special (@#\$%!&*)',
+                    helperMaxLines: 2,
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your password';
-                    } else if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
+                  validator: PasswordValidator.validate,
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
