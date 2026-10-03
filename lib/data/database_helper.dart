@@ -33,7 +33,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 3,
+        version: 4,
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
         onConfigure: _onConfigure,
@@ -76,6 +76,30 @@ class DatabaseHelper {
         }
       } catch (_) {}
     }
+    if (oldVersion < 4) {
+      try {
+        await db.execute('ALTER TABLE quizzes ADD COLUMN syncUrl TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE quizzes ADD COLUMN totalMarks REAL');
+      } catch (_) {}
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS quiz_results (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          quizId INTEGER NOT NULL,
+          studentEmail TEXT NOT NULL,
+          studentName TEXT NOT NULL,
+          status TEXT NOT NULL,
+          score REAL,
+          totalMarks REAL,
+          attemptedAt TEXT NOT NULL,
+          synchronizedAt TEXT,
+          notes TEXT,
+          FOREIGN KEY (quizId) REFERENCES quizzes (id) ON DELETE CASCADE,
+          UNIQUE (quizId, studentEmail)
+        )
+      ''');
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -117,6 +141,8 @@ class DatabaseHelper {
         subjectId TEXT NOT NULL,
         semester TEXT NOT NULL,
         chapter TEXT NOT NULL,
+        syncUrl TEXT,
+        totalMarks REAL,
         FOREIGN KEY (subjectId) REFERENCES subjects (id) ON DELETE CASCADE
       )
     ''');
@@ -130,6 +156,22 @@ class DatabaseHelper {
         durationSeconds INTEGER NOT NULL,
         date TEXT NOT NULL,
         notes TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS quiz_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quizId INTEGER NOT NULL,
+        studentEmail TEXT NOT NULL,
+        studentName TEXT NOT NULL,
+        status TEXT NOT NULL,
+        score REAL,
+        totalMarks REAL,
+        attemptedAt TEXT NOT NULL,
+        synchronizedAt TEXT,
+        notes TEXT,
+        FOREIGN KEY (quizId) REFERENCES quizzes (id) ON DELETE CASCADE,
+        UNIQUE (quizId, studentEmail)
       )
     ''');
 
@@ -275,7 +317,16 @@ class DatabaseHelper {
   // --- Quizzes ---
   Future<void> insertQuiz(QuizItem quiz) async {
     if (kIsWeb) {
-      quiz = QuizItem(id: DateTime.now().millisecondsSinceEpoch, title: quiz.title, link: quiz.link, subjectId: quiz.subjectId, semester: quiz.semester, chapter: quiz.chapter);
+      quiz = QuizItem(
+        id: DateTime.now().millisecondsSinceEpoch,
+        title: quiz.title,
+        link: quiz.link,
+        subjectId: quiz.subjectId,
+        semester: quiz.semester,
+        chapter: quiz.chapter,
+        syncUrl: quiz.syncUrl,
+        totalMarks: quiz.totalMarks,
+      );
       MockData.quizzes.add(quiz);
       return;
     }
@@ -300,9 +351,13 @@ class DatabaseHelper {
   Future<void> deleteQuiz(int id) async {
     if (kIsWeb) {
       MockData.quizzes.removeWhere((q) => q.id == id);
+      MockData.quizResults.removeWhere((r) => r.quizId == id);
       return;
     }
     final db = await instance.database;
+    try {
+      await db.delete('quiz_results', where: 'quizId = ?', whereArgs: [id]);
+    } catch (_) {}
     await db.delete('quizzes', where: 'id = ?', whereArgs: [id]);
   }
 
@@ -361,6 +416,221 @@ class DatabaseHelper {
     }
     final db = await instance.database;
     await db.delete('study_sessions', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- Quiz Results & Attempt Tracking ---
+  Future<QuizResult?> getQuizResult(int quizId, String studentEmail) async {
+    final cleanEmail = studentEmail.trim().toLowerCase();
+    if (kIsWeb) {
+      try {
+        return MockData.quizResults.firstWhere(
+          (r) => r.quizId == quizId && r.studentEmail.trim().toLowerCase() == cleanEmail,
+        );
+      } catch (_) {
+        return null;
+      }
+    }
+    final db = await instance.database;
+    final maps = await db.query(
+      'quiz_results',
+      where: 'quizId = ? AND LOWER(TRIM(studentEmail)) = ?',
+      whereArgs: [quizId, cleanEmail],
+    );
+    if (maps.isNotEmpty) {
+      return QuizResult.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<List<QuizResult>> getQuizResultsForStudent(String studentEmail) async {
+    final cleanEmail = studentEmail.trim().toLowerCase();
+    if (kIsWeb) {
+      return MockData.quizResults
+          .where((r) => r.studentEmail.trim().toLowerCase() == cleanEmail)
+          .toList();
+    }
+    final db = await instance.database;
+    final maps = await db.query(
+      'quiz_results',
+      where: 'LOWER(TRIM(studentEmail)) = ?',
+      whereArgs: [cleanEmail],
+      orderBy: 'attemptedAt DESC',
+    );
+    return maps.map((map) => QuizResult.fromMap(map)).toList();
+  }
+
+  Future<List<QuizResult>> getQuizResultsForQuiz(int quizId) async {
+    if (kIsWeb) {
+      return MockData.quizResults.where((r) => r.quizId == quizId).toList();
+    }
+    final db = await instance.database;
+    final maps = await db.query(
+      'quiz_results',
+      where: 'quizId = ?',
+      whereArgs: [quizId],
+      orderBy: 'attemptedAt DESC',
+    );
+    return maps.map((map) => QuizResult.fromMap(map)).toList();
+  }
+
+  Future<QuizResult> recordQuizAttempt({
+    required int quizId,
+    required String studentEmail,
+    required String studentName,
+  }) async {
+    final cleanEmail = studentEmail.trim().toLowerCase();
+    final existing = await getQuizResult(quizId, cleanEmail);
+
+    // If already synced, keep the synced result so we don't erase the score!
+    if (existing != null && existing.isSynced) {
+      return existing;
+    }
+
+    final now = DateTime.now();
+    if (kIsWeb) {
+      if (existing != null) {
+        final updated = existing.copyWith(
+          studentName: studentName,
+          status: 'attempted',
+          attemptedAt: now,
+        );
+        final index = MockData.quizResults.indexWhere((r) => r.id == existing.id);
+        if (index != -1) MockData.quizResults[index] = updated;
+        return updated;
+      } else {
+        final newResult = QuizResult(
+          id: DateTime.now().millisecondsSinceEpoch,
+          quizId: quizId,
+          studentEmail: cleanEmail,
+          studentName: studentName,
+          status: 'attempted',
+          attemptedAt: now,
+        );
+        MockData.quizResults.add(newResult);
+        return newResult;
+      }
+    }
+
+    final db = await instance.database;
+    if (existing != null) {
+      await db.update(
+        'quiz_results',
+        {
+          'studentName': studentName,
+          'status': 'attempted',
+          'attemptedAt': now.toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [existing.id],
+      );
+      return existing.copyWith(
+        studentName: studentName,
+        status: 'attempted',
+        attemptedAt: now,
+      );
+    } else {
+      final newResult = QuizResult(
+        quizId: quizId,
+        studentEmail: cleanEmail,
+        studentName: studentName,
+        status: 'attempted',
+        attemptedAt: now,
+      );
+      final id = await db.insert('quiz_results', newResult.toMap());
+      return newResult.copyWith(id: id);
+    }
+  }
+
+  Future<QuizResult> recordQuizSyncResult({
+    required int quizId,
+    required String studentEmail,
+    required String studentName,
+    required double score,
+    required double totalMarks,
+    String? notes,
+  }) async {
+    final cleanEmail = studentEmail.trim().toLowerCase();
+    final existing = await getQuizResult(quizId, cleanEmail);
+    final now = DateTime.now();
+
+    if (kIsWeb) {
+      if (existing != null) {
+        final updated = existing.copyWith(
+          studentName: studentName,
+          status: 'synced',
+          score: score,
+          totalMarks: totalMarks,
+          synchronizedAt: now,
+          notes: notes,
+        );
+        final index = MockData.quizResults.indexWhere((r) => r.id == existing.id);
+        if (index != -1) MockData.quizResults[index] = updated;
+        return updated;
+      } else {
+        final newResult = QuizResult(
+          id: DateTime.now().millisecondsSinceEpoch,
+          quizId: quizId,
+          studentEmail: cleanEmail,
+          studentName: studentName,
+          status: 'synced',
+          score: score,
+          totalMarks: totalMarks,
+          attemptedAt: now,
+          synchronizedAt: now,
+          notes: notes,
+        );
+        MockData.quizResults.add(newResult);
+        return newResult;
+      }
+    }
+
+    final db = await instance.database;
+    if (existing != null) {
+      await db.update(
+        'quiz_results',
+        {
+          'studentName': studentName,
+          'status': 'synced',
+          'score': score,
+          'totalMarks': totalMarks,
+          'synchronizedAt': now.toIso8601String(),
+          'notes': notes,
+        },
+        where: 'id = ?',
+        whereArgs: [existing.id],
+      );
+      return existing.copyWith(
+        studentName: studentName,
+        status: 'synced',
+        score: score,
+        totalMarks: totalMarks,
+        synchronizedAt: now,
+        notes: notes,
+      );
+    } else {
+      final newResult = QuizResult(
+        quizId: quizId,
+        studentEmail: cleanEmail,
+        studentName: studentName,
+        status: 'synced',
+        score: score,
+        totalMarks: totalMarks,
+        attemptedAt: now,
+        synchronizedAt: now,
+        notes: notes,
+      );
+      final id = await db.insert('quiz_results', newResult.toMap());
+      return newResult.copyWith(id: id);
+    }
+  }
+
+  Future<void> deleteQuizResult(int id) async {
+    if (kIsWeb) {
+      MockData.quizResults.removeWhere((r) => r.id == id);
+      return;
+    }
+    final db = await instance.database;
+    await db.delete('quiz_results', where: 'id = ?', whereArgs: [id]);
   }
 }
 

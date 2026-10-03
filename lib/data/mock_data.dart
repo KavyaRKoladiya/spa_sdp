@@ -26,6 +26,7 @@ class MockData {
   static List<MaterialItem> materials = [];
   static List<QuizItem> quizzes = [];
   static List<StudySession> studySessions = [];
+  static List<QuizResult> quizResults = [];
 
   static final List<String> semesters = [
     'Semester 1',
